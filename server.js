@@ -24,10 +24,10 @@ io.on('connection', (socket) => {
 
   socket.on('join', (data) => {
     const { role, username } = data;
-    console.log(`User ${username} (${socket.id}) joined with role: ${role}`);
 
     // Check if the user is already in the waiting list
     if (!waitingUsers[role].has(socket.id)) {
+      console.log(`User ${username} (${socket.id}) joined with role: ${role}`);
       waitingUsers[role].set(socket.id, { socket, username });
 
       if (waitingUsers[role].size >= 2) {
