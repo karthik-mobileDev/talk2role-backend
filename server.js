@@ -12,9 +12,9 @@ const io = socketIo(server, {
 });
 
 const waitingUsers = {
-  IT: [],
-  'Non-IT': [],
-  Government: [],
+  IT: new Map(),
+  'Non-IT': new Map(),
+  Government: new Map(),
 };
 
 const connectedPeers = new Map();
@@ -25,19 +25,28 @@ io.on('connection', (socket) => {
   socket.on('join', (data) => {
     const { role, username } = data;
     console.log(`User ${username} (${socket.id}) joined with role: ${role}`);
-    waitingUsers[role].push({ socket, username });
 
-    if (waitingUsers[role].length >= 2) {
-      const user1 = waitingUsers[role].shift();
-      const user2 = waitingUsers[role].shift();
+    // Check if the user is already in the waiting list
+    if (!waitingUsers[role].has(socket.id)) {
+      waitingUsers[role].set(socket.id, { socket, username });
 
-      console.log(`Matching ${user1.username} (${user1.socket.id}) with ${user2.username} (${user2.socket.id})`);
+      if (waitingUsers[role].size >= 2) {
+        const users = Array.from(waitingUsers[role].values());
+        const user1 = users[0];
+        const user2 = users[1];
 
-      connectedPeers.set(user1.socket.id, user2.socket.id);
-      connectedPeers.set(user2.socket.id, user1.socket.id);
+        console.log(`Matching ${user1.username} (${user1.socket.id}) with ${user2.username} (${user2.socket.id})`);
 
-      user1.socket.emit('match', { partnerUsername: user2.username, initiator: true });
-      user2.socket.emit('match', { partnerUsername: user1.username, initiator: false });
+        connectedPeers.set(user1.socket.id, user2.socket.id);
+        connectedPeers.set(user2.socket.id, user1.socket.id);
+
+        user1.socket.emit('match', { partnerUsername: user2.username, initiator: true });
+        user2.socket.emit('match', { partnerUsername: user1.username, initiator: false });
+
+        // Remove matched users from the waiting list
+        waitingUsers[role].delete(user1.socket.id);
+        waitingUsers[role].delete(user2.socket.id);
+      }
     }
   });
 
@@ -77,10 +86,9 @@ io.on('connection', (socket) => {
 
     // Remove from waiting lists
     for (const role in waitingUsers) {
-      const index = waitingUsers[role].findIndex(user => user.socket.id === socket.id);
-      if (index !== -1) {
+      if (waitingUsers[role].has(socket.id)) {
         console.log(`Removed disconnected user from ${role} waiting list`);
-        waitingUsers[role].splice(index, 1);
+        waitingUsers[role].delete(socket.id);
       }
     }
   });
